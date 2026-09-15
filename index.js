@@ -1,353 +1,262 @@
-require('dotenv').config();
 const { 
     Client, 
     GatewayIntentBits, 
-    Events, 
     REST, 
     Routes, 
     SlashCommandBuilder, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle, 
-    ChannelType, 
     PermissionFlagsBits,
-    EmbedBuilder 
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType
 } = require('discord.js');
 const { GoogleGenAI } = require('@google/genai');
+const fs = require('fs');
 
-// ==========================================
-// ⚙️ المتغيرات والإعدادات (ضع الـ IDs الخاصة بك)
-// ==========================================
-const ADMIN_ROLE_ID = 'ضع_هنا_ID_رتبة_الادارة';
-const LOG_CHANNEL_ID = 'ضع_هنا_ID_قناة_اللوق'; 
-const WELCOME_CHANNEL_ID = 'ضع_هنا_ID_قناة_الترحيب';
-const AUTO_ROLE_ID = 'ضع_هنا_ID_رتبة_العضو_التلقائية';
-
-const WELCOME_GIF_URL = 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZudnA3dmN3amJtcXZndnIxejU5ZHdocmN3ZnR5eXZxbHZib3Y0YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/mCbUi0fyYh3G2YL9Oi/giphy.gif';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+// 1. إعداد الـ Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.MessageContent
     ]
 });
 
-// ==========================================
-// ✂️ أسئلة ودالة Cut Tweet
-// ==========================================
+// 2. إعداد Gemini AI
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// 3. ملف الردود التلقائية
+const DATA_FILE = './auto_responses.json';
+let autoResponses = {};
+
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        autoResponses = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    } catch (err) {
+        console.error('خطأ في قراءة ملف الردود:', err);
+    }
+}
+
+function saveResponses() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(autoResponses, null, 2));
+}
+
+// قائمة أسئلة كت تويت والصورة الخضراء
 const cutQuestions = [
-    "شيء لو اختفى من حياتك تتغير للأفضل؟ 🍃",
-    "شنو أكثر صفة تحبها بشخصيتك وتكرهها بنفس الوقت؟ 🎭",
-    "لو أتيحت لك فرصة تغير اسمك، شنو تختار؟ 🏷️",
-    "صفة مستحيل تتقبلها بأي شخص؟ 🚫",
-    "أخير شخص كلمته بالخاص، شنو آخر كلمة قلتها له؟ 📱",
-    "شيء سويته بطفولتك وما زلت مستحي منه؟ 😅",
-    "لو يعطونك مليون دولار بشرط تبعد عن التكنولوجيا شهر، توافق؟ 💰",
-    "كلمة حاب تقولها للشخص اللي ببالك حالياً؟ 💭",
-    "شنو الشيء اللي يحسن مزاجك فوراً لما تكون متضايق؟ ✨",
-    "أفضل عادة تسويها بيومك؟ ☀️",
-    "شنو أكبر حلم حققته لغاية اليوم؟ 🏆",
-    "لو ترجع بالزمن سنة ورى، شنو الشيء اللي بتغيره؟ ⏳",
-    "شخص بالسيرفر تستانس لما تشوفه متواجد؟ 👤",
-    "أكثر قرار اتخذته بحياتك وكان صحيح 100%؟ 🎯",
-    "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕"
+    "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
+    "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
+    "لو أتيحت لك فرصة السفر الآن، ما هي وجهتك؟ ✈️",
+    "شنو أكثر صفة تكرها في الأشخاص؟ ❌",
+    "عادة يومية لو لم تفعلها ينظر يومك ناقص؟ ☕",
+    "أفضل فيلم أو مسلسل شاهدته في حياتك؟ 🎬",
+    "لو ترجع بالزمن لسنة واحدة، شنو التغيير اللي بتسويه؟ ⏳"
 ];
+const CUT_IMAGE_URL = 'https://i.ibb.co/green-cut-tox.png';
 
-function createCutMessage(user) {
+// 4. بناء أوامر السلاش
+const commands = [
+    new SlashCommandBuilder()
+        .setName('كت')
+        .setDescription('إرسال سؤال كت تويت عشوائي'),
+    
+    new SlashCommandBuilder()
+        .setName('لوحة-التذاكر')
+        .setDescription('إرسال لوحة فتح التذاكر (للمشرفين)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('إضافة-رد')
+        .setDescription('إضافة رد تلقائي جديد')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+        .addStringOption(opt => opt.setName('الكلمة').setDescription('الكلمة').setRequired(true))
+        .addStringOption(opt => opt.setName('الرد').setDescription('الرد').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('حذف-رد')
+        .setDescription('حذف رد تلقائي')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+        .addStringOption(opt => opt.setName('الكلمة').setDescription('الكلمة').setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('الردود')
+        .setDescription('عرض الردود التلقائية')
+].map(cmd => cmd.toJSON());
+
+// 5. عند تشغيل البوت
+client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    try {
+        await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+        console.log('تم تسجيل أوامر السلاش بنجاح!');
+    } catch (error) {
+        console.error('خطأ تسجيل الأوامر:', error);
+    }
+});
+
+// دالة إنشاء إمبد الكت تويت
+function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
-
-    const cutEmbed = new EmbedBuilder()
-        .setAuthor({ name: '✨ Cut Tweet | كت تويت', iconURL: 'https://cdn-icons-png.flaticon.com/512/3408/3408591.png' })
-        .setTitle(`📌 **${randomQuestion}**`)
-        .setColor('#8A2BE2')
-        .setImage('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHJmYzRnbmx6ZmdzcDRhOHFlYXlmcmluNmVsNTRvOWpwcWtlNmR3OCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjRrfIPjeiVyM/giphy.gif')
-        .setFooter({ text: `طلب بواسطة: ${user.username} • جاوب في الروم!`, iconURL: user.displayAvatarURL({ dynamic: true }) })
+    const embed = new EmbedBuilder()
+        .setColor('#57F287')
+        .setTitle('📊 ✨ Cut Tweet | كت تويت')
+        .setDescription(`### **📌 ${randomQuestion}**`)
+        .setImage(CUT_IMAGE_URL)
+        .setFooter({ text: `طلب بواسطة: ${user.username} • جاوب في الروم!`, iconURL: user.displayAvatarURL() })
         .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('next_cut_question')
             .setLabel('سؤال آخر 🎲')
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(ButtonStyle.Success)
     );
-
-    return { embeds: [cutEmbed], components: [row] };
+    return { embeds: [embed], components: [row] };
 }
 
-// ==========================================
-// 📜 تسجيل أوامر السلاش (Slash Commands)
-// ==========================================
-const commands = [
-    new SlashCommandBuilder()
-        .setName('say')
-        .setDescription('إرسال رسالة من خلال البوت')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addStringOption(option => 
-            option.setName('message')
-                .setDescription('الرسالة التي تريد إرسالها')
-                .setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('setup-ticket')
-        .setDescription('إرسال لوحة فتح التذاكر في القناة الحالية')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-].map(command => command.toJSON());
-
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-
-client.once(Events.ClientReady, async c => {
-    console.log(`✅ تم تسجيل الدخول بنجاح باسم: ${c.user.tag}`);
-    try {
-        await rest.put(Routes.applicationCommands(c.user.id), { body: commands });
-        console.log('✅ تم تسجيل وتأمين أوامر السلاش بنجاح!');
-    } catch (error) {
-        console.error('❌ خطأ في تسجيل أوامر السلاش:', error);
-    }
-});
-
-// ==========================================
-// 1️⃣ الترحيب وإعطاء الرتبة التلقائية
-// ==========================================
-client.on(Events.GuildMemberAdd, async member => {
-    try {
-        const autoRole = member.guild.roles.cache.get(AUTO_ROLE_ID);
-        if (autoRole) await member.roles.add(autoRole);
-    } catch (err) {
-        console.error('❌ تعذر إعطاء الرتبة التلقائية:', err);
-    }
-
-    const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
-    if (!welcomeChannel) return;
-
-    const welcomeEmbed = new EmbedBuilder()
-        .setTitle(`🔥 أهلاً بك في ${member.guild.name}!`)
-        .setDescription(`أهلاً وسهلاً بك يا ${member}! نورت السيرفر وانضمامك يسعدنا جداً 🚀`)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
-        .addFields(
-            { name: '👤 العضو رقم:', value: `**#${member.guild.memberCount}**`, inline: true },
-            { name: '📜 القوانين:', value: 'يرجى الاطلاع على القوانين لتجنب العقوبات.', inline: true }
-        )
-        .setColor('#5865F2')
-        .setImage(WELCOME_GIF_URL)
-        .setFooter({ text: 'نتمنى لك وقتاً ممتعاً معنا!', iconURL: member.guild.iconURL() })
-        .setTimestamp();
-
-    await welcomeChannel.send({ content: `👋 مرحباً بك ${member}!`, embeds: [welcomeEmbed] });
-});
-
-// ==========================================
-// 2️⃣ التفاعل مع أوامر السلاش والأزرار
-// ==========================================
-client.on(Events.InteractionCreate, async interaction => {
+// 6. التعامل مع التفاعلات (Slash Commands & Buttons)
+client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'say') {
-            const textToSay = interaction.options.getString('message');
-            await interaction.reply({ content: '👌 تم إرسال الرسالة بنجاح!', ephemeral: true });
-            await interaction.channel.send(textToSay);
+        const { commandName, options, user, guild, channel } = interaction;
+
+        if (commandName === 'كت') {
+            await interaction.reply(createCutEmbed(user));
         }
 
-        if (interaction.commandName === 'setup-ticket') {
-            const embedPanel = new EmbedBuilder()
-                .setTitle('🎫 مركز الدعم الفني والتذاكر')
-                .setDescription('إذا كان لديك أي استفسار أو مشكلة، يرجى فتح تذكرة بالضغط على الزر أسفله.')
-                .addFields(
-                    { name: '⏰ أوقات العمل', value: 'فريق الدعم متواجد لخدمتكم على مدار الساعة.', inline: false },
-                    { name: '⚠️ تنبيه مهم', value: 'يرجى عدم فتح التذاكر العشوائية لتجنب العقوبات.', inline: false }
-                )
-                .setColor('#2b2d31')
-                .setFooter({ text: `${interaction.guild.name} • Support System`, iconURL: interaction.guild.iconURL() })
-                .setTimestamp();
+        else if (commandName === 'لوحة-التذاكر') {
+            const embed = new EmbedBuilder()
+                .setColor('#57F287')
+                .setTitle('🎫 نظام الدعم الفني والتذاكر')
+                .setDescription('إضغط على الزر أسفله لفتح تذكرة وسيتم التواصل معك من قبل فريق الدعم الفني.');
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('create_ticket')
-                    .setLabel('فتح تذكرة')
-                    .setEmoji('📩')
-                    .setStyle(ButtonStyle.Primary)
+                    .setLabel('فتح تذكرة 📩')
+                    .setStyle(ButtonStyle.Success)
             );
 
-            await interaction.reply({ content: '✅ تم إنشاء لوحة التذاكر بنجاح!', ephemeral: true });
-            await interaction.channel.send({ embeds: [embedPanel], components: [row] });
+            await channel.send({ embeds: [embed], components: [row] });
+            await interaction.reply({ content: '✅ تم إرسال لوحة التذاكر بنجاح!', ephemeral: true });
+        }
+
+        else if (commandName === 'إضافة-رد') {
+            const trigger = options.getString('الكلمة').toLowerCase();
+            const response = options.getString('الرد');
+            autoResponses[trigger] = response;
+            saveResponses();
+            await interaction.reply({ content: `✅ تم إضافة الرد للكلمة: **${trigger}**`, ephemeral: true });
+        }
+
+        else if (commandName === 'حذف-رد') {
+            const trigger = options.getString('الكلمة').toLowerCase();
+            if (autoResponses[trigger]) {
+                delete autoResponses[trigger];
+                saveResponses();
+                await interaction.reply({ content: `🗑️ تم حذف الرد للكلمة: **${trigger}**`, ephemeral: true });
+            } else {
+                await interaction.reply({ content: `❌ الكلمة غير موجودة.`, ephemeral: true });
+            }
+        }
+
+        else if (commandName === 'الردود') {
+            const keys = Object.keys(autoResponses);
+            if (keys.length === 0) return interaction.reply({ content: '📭 لا يوجد ردود مسجلة.', ephemeral: true });
+            let listText = '📋 **الردود التلقائية:**\n\n' + keys.map((k, i) => `${i + 1}. **${k}** ➔ ${autoResponses[k]}`).join('\n');
+            await interaction.reply({ content: listText, ephemeral: true });
         }
     }
 
-    if (interaction.isButton()) {
-        if (interaction.customId === 'next_cut_question') {
-            const newMessage = createCutMessage(interaction.user);
-            await interaction.reply(newMessage);
+    // الأزرار (Buttons)
+    else if (interaction.isButton()) {
+        const { customId, guild, user, channel } = interaction;
+
+        if (customId === 'next_cut_question') {
+            await interaction.update(createCutEmbed(user));
         }
 
-        if (interaction.customId === 'create_ticket') {
-            const ticketName = `ticket-${interaction.user.username}`;
-            const existingChannel = interaction.guild.channels.cache.find(c => c.name === ticketName.toLowerCase());
+        else if (customId === 'create_ticket') {
+            const ticketChannelName = `ticket-${user.username}`;
+            const existingChannel = guild.channels.cache.find(c => c.name === ticketChannelName);
+
             if (existingChannel) {
                 return interaction.reply({ content: `❌ لديك تذكرة مفتوحة بالفعل: ${existingChannel}`, ephemeral: true });
             }
 
-            const ticketChannel = await interaction.guild.channels.create({
-                name: ticketName,
+            const ticketChannel = await guild.channels.create({
+                name: ticketChannelName,
                 type: ChannelType.GuildText,
                 permissionOverwrites: [
-                    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles] },
-                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                ],
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+                ]
             });
 
-            const ticketEmbed = new EmbedBuilder()
-                .setTitle(`مرحباً بك في تذكرتك، ${interaction.user.username}!`)
-                .setDescription('يرجى شرح مشكلتك بالتفصيل وسيقوم أحد المسؤولين بالرد عليك قريباً.')
-                .setColor('#57f287')
-                .setTimestamp();
+            const closeEmbed = new EmbedBuilder()
+                .setColor('#ED4245')
+                .setTitle(`مرحباً بك ${user.username}`)
+                .setDescription('اكتب مشكلتك أو استفسارك هنا وسيرد عليك الإدارة قريباً.\n\nضغط الزر بالأسفل لإغلاق التذكرة.');
 
-            const closeRow = new ActionRowBuilder().addComponents(
+            const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('close_ticket')
-                    .setLabel('إغلاق التذكرة')
-                    .setEmoji('🔒')
+                    .setLabel('إغلاق التذكرة 🔒')
                     .setStyle(ButtonStyle.Danger)
             );
 
-            await ticketChannel.send({ content: `${interaction.user} | <@&${ADMIN_ROLE_ID}>`, embeds: [ticketEmbed], components: [closeRow] });
-            await interaction.reply({ content: `✅ تم إنشاء تذكرتك بنجاح: ${ticketChannel}`, ephemeral: true });
-
-            const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) {
-                const openLogEmbed = new EmbedBuilder()
-                    .setTitle('🟢 تم فتح تذكرة جديدة')
-                    .addFields(
-                        { name: '👤 صاحب التذكرة:', value: `${interaction.user} (${interaction.user.id})`, inline: true },
-                        { name: '📌 القناة:', value: `${ticketChannel.name}`, inline: true }
-                    )
-                    .setColor('#57f287')
-                    .setTimestamp();
-                logChannel.send({ embeds: [openLogEmbed] });
-            }
+            await ticketChannel.send({ embeds: [closeEmbed], components: [row] });
+            await interaction.reply({ content: `✅ تم فتح تذكرتك: ${ticketChannel}`, ephemeral: true });
         }
 
-        if (interaction.customId === 'close_ticket') {
-            const closeEmbed = new EmbedBuilder()
-                .setTitle('🔒 إغلاق التذكرة')
-                .setDescription('سيتم حذف القناة وإغلاق التذكرة خلال **5 ثوانٍ**...')
-                .setColor('#ed4245');
-
-            await interaction.reply({ embeds: [closeEmbed] });
-
-            const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) {
-                const closeLogEmbed = new EmbedBuilder()
-                    .setTitle('🔴 تم إغلاق تذكرة')
-                    .addFields(
-                        { name: '📌 التذكرة المغلقة:', value: `${interaction.channel.name}`, inline: true },
-                        { name: '🛡️ تم الإغلاق بواسطة:', value: `${interaction.user} (${interaction.user.id})`, inline: true }
-                    )
-                    .setColor('#ed4245')
-                    .setTimestamp();
-                logChannel.send({ embeds: [closeLogEmbed] });
-            }
-
-            setTimeout(() => { interaction.channel.delete().catch(console.error); }, 5000);
+        else if (customId === 'close_ticket') {
+            await interaction.reply('🔒 جاري إغلاق التذكرة خلال 5 ثوانٍ...');
+            setTimeout(() => channel.delete(), 5000);
         }
     }
 });
 
-// ==========================================
-// 3️⃣ الأوامر العادية + AI
-// ==========================================
-const chatSessions = new Map();
+// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي Gemini)
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
 
-client.on(Events.MessageCreate, async message => {
-    if (message.author.bot || !message.guild) return;
+    const content = message.content.toLowerCase().trim();
 
-    // ✂️ أمر كت تويت
-    if (message.content === '!cut' || message.content === '!كت') {
-        const cutMessage = createCutMessage(message.author);
-        return message.channel.send(cutMessage);
+    // أولاً: فحص الردود التلقائية المحفوظة
+    if (autoResponses[content]) {
+        return message.reply(autoResponses[content]);
     }
 
-    // 🚀 أمر الطرد (+تف)
-    if (message.content.startsWith('+تف')) {
-        if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-            return message.reply('❌ ليس لديك صلاحية طرد الأعضاء!');
-        }
-        const targetMember = message.mentions.members.first();
-        if (!targetMember) return message.reply('❌ يرجى تحديد الشخص المراد طرده عبر المنشن!');
+    // ثانياً: إذا تم الإشارة للبوت (Mention) أو الرد على رسالته -> استخدام Gemini AI
+    if (message.mentions.has(client.user) || (message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id)) {
         try {
-            await targetMember.kick();
-            message.reply(`🚀 تم طرد ${targetMember.user.tag} بنجاح!`);
-        } catch (err) {
-            console.error(err);
-            message.reply('❌ تعذر طرد العضو، تأكد من صلاحيات البوت ورتبته!');
-        }
-    }
+            await message.channel.sendTyping();
+            
+            // تنظيف النص من المنشن
+            const cleanPrompt = message.content.replace(/<@!?\d+>/g, '').trim();
+            if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
 
-    // 🔄 أمر مسح ذاكرة AI
-    if (message.content === '!reset') {
-        chatSessions.delete(message.channel.id);
-        return message.reply('🔄 تم مسح ذاكرة المحادثة لهذه القناة بنجاح!');
-    }
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: cleanPrompt,
+            });
 
-    // 🤖 أمر الذكاء الاصطناعي (!ai)
-    if (message.content.startsWith('!ai')) {
-        const prompt = message.content.slice(3).trim();
-        const imageAttachment = message.attachments.find(att => att.contentType?.startsWith('image/'));
-        if (!prompt && !imageAttachment) return message.reply('❌ اكتب سؤالك أو أرفق صورة بعد الأمر!');
-
-        await message.channel.sendTyping();
-
-        const primaryModel = 'gemini-3.6-flash';
-        const fallbackModel = 'gemini-3.6-flash-lite';
-        
-        const channelId = message.channel.id;
-        const userName = message.author.displayName || message.author.username;
-
-        let responseText = '';
-
-        try {
-            if (imageAttachment) {
-                const imageResponse = await fetch(imageAttachment.url);
-                const arrayBuffer = await imageResponse.arrayBuffer();
-                const imageBuffer = Buffer.from(arrayBuffer);
-
-                const res = await ai.models.generateContent({
-                    model: primaryModel,
-                    contents: [
-                        prompt || "اشرح لي هذه الصورة",
-                        { inlineData: { data: imageBuffer.toString("base64"), mimeType: imageAttachment.contentType } }
-                    ]
-                });
-                responseText = res.text;
-            } else {
-                if (!chatSessions.has(channelId)) {
-                    const newChat = ai.chats.create({
-                        model: primaryModel,
-                        config: { systemInstruction: `أنت مساعد ذكي ولطيف في سيرفر ديسكورد. تتحدث مع المستخدم "${userName}".` }
-                    });
-                    chatSessions.set(channelId, newChat);
+            const replyText = response.text || 'عذراً، لم أستطع فهم ذلك.';
+            
+            // تقسيم الرد إذا كان أطول من حد ديسكورد (2000 حرف)
+            if (replyText.length > 2000) {
+                const chunks = replyText.match(/[\s\S]{1,1900}/g);
+                for (const chunk of chunks) {
+                    await message.reply(chunk);
                 }
-                const chat = chatSessions.get(channelId);
-                const res = await chat.sendMessage({ message: prompt });
-                responseText = res.text;
+            } else {
+                await message.reply(replyText);
             }
-        } catch (primaryErr) {
-            console.warn('⚠️ جاري المحاولة بالنموذج الاحتياطي:', primaryErr.message);
-            try {
-                const fallbackRes = await ai.models.generateContent({
-                    model: fallbackModel,
-                    contents: prompt || "مرحبا"
-                });
-                responseText = fallbackRes.text;
-            } catch (fallbackErr) {
-                console.error('❌ خطأ في النظام:', fallbackErr);
-                return message.reply('⏳ تم تجاوز حد الطلبات اليومي، يرجى استخراج API Key جديد وتحديثه في ملف `.env`.');
-            }
+        } catch (error) {
+            console.error('Gemini AI Error:', error);
+            message.reply('حدث خطأ أثناء التواصل مع الذكاء الاصطناعي.');
         }
-
-        const replyText = responseText.length > 1900 ? responseText.substring(0, 1900) + '...' : responseText;
-        message.reply(replyText);
     }
 });
 
