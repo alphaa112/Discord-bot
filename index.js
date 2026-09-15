@@ -272,7 +272,7 @@ client.on('messageCreate', async message => {
 
             const chatCompletion = await groq.chat.completions.create({
                 messages: [{ role: 'user', content: cleanPrompt }],
-                model: 'llama-3.1-8b-instant',
+                model: 'openai/gpt-oss-20b',
             });
 
             const replyText = chatCompletion.choices[0]?.message?.content || 'عذراً، لم أستطع فهم ذلك.';
