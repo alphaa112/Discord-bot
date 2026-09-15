@@ -28,6 +28,9 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
 
+// ذاكرة مؤقتة لحفظ سياق المحادثة حسب القناة
+const conversationHistory = new Map();
+
 // 3. ملف الردود التلقائية
 const DATA_FILE = './auto_responses.json';
 let autoResponses = {};
@@ -48,7 +51,7 @@ function saveResponses() {
     }
 }
 
-// قائمة أسئلة كت تويت والصورة الخضراء
+// قائمة أسئلة كت تويت
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -59,6 +62,12 @@ const cutQuestions = [
     "لو ترجع بالزمن لسنة واحدة، شنو التغيير اللي بتسويه؟ ⏳"
 ];
 const CUT_IMAGE_URL = 'https://i.ibb.co/C03vR20/green-tox.png';
+
+// تعليمات شخصية البوت وفهم اللهجات
+const SYSTEM_PROMPT = {
+    role: 'system',
+    content: 'أنت بوت شات رهيب وسلس في ديسكورد. تفهم جميع اللهجات العربية (مثل الشامية، الأردنية، الخليجية، والمصرية) بذكاء وبدون فلسفة أو تدقيق لغوي. رد بنفس لهجة العضو بشكل عصري، ودي، ومختصر دون الحاجة لتصحيح المفردات أو القول إنها غير معروفة.'
+};
 
 // 4. بناء أوامر السلاش
 const commands = [
@@ -176,7 +185,6 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
-        // الأزرار (Buttons)
         else if (interaction.isButton()) {
             const { customId, guild, user, channel } = interaction;
 
@@ -227,7 +235,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي Groq)
+// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي مع الكلمة التفعيلية: يا بوت)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -238,9 +246,9 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[content]);
     }
 
-    // ثانياً: شروط تفعيل الذكاء الاصطناعي
+    // ثانياً: شروط تفعيل الذكاء الاصطناعي (منشن، !ai، ريبلاي، أو بداية الرسالة بـ "يا بوت")
     const isMentioned = message.mentions.has(client.user);
-    const isAiPrefix = content.startsWith('!ai');
+    const isAiPrefix = content.startsWith('!ai') || content.startsWith('يا بوت');
     let isReplyToBot = false;
 
     if (message.reference && message.reference.messageId) {
@@ -249,35 +257,43 @@ client.on('messageCreate', async message => {
             if (referencedMsg && referencedMsg.author.id === client.user.id) {
                 isReplyToBot = true;
             }
-        } catch (e) {
-            // تجاهل خطأ جلب الرسالة القديمة
-        }
+        } catch (e) {}
     }
 
     if (isMentioned || isAiPrefix || isReplyToBot) {
         try {
             await message.channel.sendTyping();
             
-            // تنظيف النص وضمان معالجة الـ Reply بدقة
+            // مسح الكلمات التفعيلية للحصول على السؤال فقط
             let cleanPrompt = message.content
                 .replace(/<@!?\d+>/g, '')
                 .replace(/^!ai/i, '')
+                .replace(/^يا بوت/i, '')
                 .trim();
 
-            if (!cleanPrompt && message.content) {
-                cleanPrompt = message.content.trim();
+            if (!cleanPrompt) cleanPrompt = "أهلاً";
+
+            const channelId = message.channel.id;
+            if (!conversationHistory.has(channelId)) {
+                conversationHistory.set(channelId, []);
+            }
+            const history = conversationHistory.get(channelId);
+
+            history.push({ role: 'user', content: cleanPrompt });
+
+            if (history.length > 20) {
+                history.shift();
             }
 
-            if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
-
             const chatCompletion = await groq.chat.completions.create({
-                messages: [{ role: 'user', content: cleanPrompt }],
+                messages: [SYSTEM_PROMPT, ...history],
                 model: 'openai/gpt-oss-20b',
             });
 
-            const replyText = chatCompletion.choices[0]?.message?.content || 'عذراً، لم أستطع فهم ذلك.';
+            const replyText = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
             
-            // تقسيم الرد إذا كان أطول من حد ديسكورد (2000 حرف)
+            history.push({ role: 'assistant', content: replyText });
+
             if (replyText.length > 2000) {
                 const chunks = replyText.match(/[\s\S]{1,1900}/g) || [];
                 for (const chunk of chunks) {
@@ -288,7 +304,8 @@ client.on('messageCreate', async message => {
             }
         } catch (error) {
             console.error('Groq AI Error:', error);
-            message.reply('حدث خطأ أثناء التواصل مع الذكاء الاصطناعي.');
+            const history = conversationHistory.get(message.channel.id);
+            if (history) history.pop();
         }
     }
 });
