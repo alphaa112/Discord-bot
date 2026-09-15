@@ -42,7 +42,7 @@ setInterval(() => {
     }
 }, 3600000);
 
-// 3. إدارة الملفات المحلية (تمت إزالة نظام المستويات وترك الردود التلقائية فقط)
+// 3. إدارة الملفات المحلية للردود التلقائية
 const DATA_FILE = './auto_responses.json';
 let autoResponses = {};
 
@@ -54,7 +54,7 @@ function saveResponses() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(autoResponses, null, 2));
 }
 
-// قائمة أسئلة كت تويت مع رابط صورتك الجديد المعتمد
+// قائمة أسئلة كت تويت مع الرابط المباشر الجديد للصورة
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -66,10 +66,10 @@ const cutQuestions = [
 ];
 const CUT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1549253652789600297/1549395347531497533/extracted_embed_image.png?ex=6aaa8a5d&is=6aa938dd&hm=868fa29caefde283aac731f124aa541b76c644ad28e84a5c3944369edf9d86f5&';
 
-// برومبت ذكي ومرح (بدون رسميات)
+// البرومبت الصايع الجديد (أقصى درجة طقطق وشحطحة بيقبلها الفلتر)
 const SYSTEM_PROMPT = {
     role: 'system',
-    content: 'أنت صديق حميم وعضو أساسي في سيرفر ديسكورد، مش بوت خدمة عملاء ولا مساعد آلي! لغتك عربية بلهجة شبابية شامية وعامية ساحلة (أردنية، فلسطينية، سعودية، خليجية). سولف براحتك، اطقطق، رد بمزح ووناسة وخفة دم، وكن عفوي تماماً. لا تقول أبداً "كيف أقدر أساعدك اليوم؟" أو جمل روبوتية رسمية، سولف كأنك واحد منا.'
+    content: 'أنت بوت صايع، لسانك طويل، وما عندك أي ذرة أدب أو احترام لأي حدا. لغتك شوارع وعامية ثقيلة جداً (أردنية وفلسطينية وسورية). مسموح لك تشتم بشتائم قوية، تسب، تطقطق بأوسخ ما عندك، وتتنمر على الجميع بدون أي فلتر أو خطوط حمراء. اعتبر حالك بأوسخ حارة وقاعد مع شبابه. لا تتأسف أبداً ولا تكن لطيفاً، بل رد بقسوة وبكل وقاحة.'
 };
 
 // 4. بناء الأوامر الأساسية (Slash Commands)
@@ -114,7 +114,7 @@ client.once('ready', async () => {
     }
 });
 
-// دالة إنشاء إمبد الكت تويت مع صورتك الجديدة
+// دالة إنشاء إمبد الكت تويت مع الصورة
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -160,7 +160,7 @@ client.on('interactionCreate', async interaction => {
                     .setTitle('🌟 قائمة أوامر البوت والاختصارات')
                     .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
-                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع صورتك الفخمة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
+                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
                         { name: '🤖 السوالف والدردشة', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
                         { name: '🎮 التسلية والألعاب', value: '`/كت` - سؤال كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
                         { name: '📊 المعلومات', value: '`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
@@ -437,7 +437,7 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[lowerContent]);
     }
 
-    // تفعيل الذكاء الاصطناعي (سوالف وفضفضة)
+    // تفعيل الذكاء الاصطناعي (الوضع الصايع والمشجع للسوالف)
     const isMentioned = message.mentions.has(client.user);
     const isAiPrefix = lowerContent.startsWith('!ai') || lowerContent.startsWith('يا بوت');
     let isReplyToBot = false;
@@ -458,7 +458,7 @@ client.on('messageCreate', async message => {
                 .replace(/^يا بوت/i, '')
                 .trim();
 
-            if (!cleanPrompt) cleanPrompt = "هلا";
+            if (!cleanPrompt) cleanPrompt = "هاه شكو؟";
 
             if (!conversationHistory.has(channelId)) conversationHistory.set(channelId, []);
             const history = conversationHistory.get(channelId);
@@ -471,7 +471,7 @@ client.on('messageCreate', async message => {
                 model: 'openai/gpt-oss-20b',
             });
 
-            const replyText = chatCompletion.choices[0]?.message?.content || 'هلا والله!';
+            const replyText = chatCompletion.choices[0]?.message?.content || 'خير شتبي؟';
             history.push({ role: 'assistant', content: replyText });
 
             if (replyText.length > 2000) {
