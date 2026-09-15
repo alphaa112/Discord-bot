@@ -28,8 +28,17 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
 
-// ذاكرة مؤقتة لحفظ سياق المحادثة حسب القناة
+// ذاكرة مؤقتة لحفظ المحادثات والرسائل المعالجة
 const conversationHistory = new Map();
+const processedMessages = new Set();
+
+// تنظيف الذاكرة المؤقتة كل ساعة للقنوات غير النشطة
+setInterval(() => {
+    if (conversationHistory.size > 50) {
+        conversationHistory.clear();
+        console.log('🧹 تم تنظيف ذاكرة المحادثات المؤقتة لتوفير الموارد.');
+    }
+}, 3600000);
 
 // 3. ملف الردود التلقائية
 const DATA_FILE = './auto_responses.json';
@@ -63,10 +72,10 @@ const cutQuestions = [
 ];
 const CUT_IMAGE_URL = 'https://i.ibb.co/C03vR20/green-tox.png';
 
-// تعليمات شخصية البوت وفهم اللهجات
+// تعليمات شخصية البوت وفهم جميع اللهجات
 const SYSTEM_PROMPT = {
     role: 'system',
-    content: 'أنت بوت شات رهيب وسلس في ديسكورد. تفهم جميع اللهجات العربية (مثل الشامية، الأردنية، الخليجية، والمصرية) بذكاء وبدون فلسفة أو تدقيق لغوي. رد بنفس لهجة العضو بشكل عصري، ودي، ومختصر دون الحاجة لتصحيح المفردات أو القول إنها غير معروفة.'
+    content: 'أنت بوت شات ذكي ورهيب في ديسكورد. تفهم جميع اللهجات العربية (الشامية، الأردنية، الخليجية، والمصرية) والاختصارات بذكاء. رد بنفس لهجة العضو بشكل عصري، ودي، ومختصر دون الحاجة لتصحيح المفردات أو القول إنها غير معروفة.'
 };
 
 // 4. بناء أوامر السلاش
@@ -100,14 +109,14 @@ const commands = [
 
 // 5. عند تشغيل البوت
 client.once('ready', async () => {
-    console.log(`تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
+    console.log(`✅ تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('تم تسجيل وتأمين أوامر السلاش بنجاح!');
+        console.log('🚀 تم تسجيل وتأمين أوامر السلاش بنجاح!');
     } catch (error) {
-        console.error('خطأ تسجيل الأوامر:', error);
+        console.error('❌ خطأ تسجيل الأوامر:', error);
     }
 });
 
@@ -235,9 +244,14 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي مع الكلمة التفعيلية: يا بوت)
+// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي مع مانع التكرار)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
+
+    // حماية لمنع المعالجة المزدوجة لنفس الرسالة
+    if (processedMessages.has(message.id)) return;
+    processedMessages.add(message.id);
+    setTimeout(() => processedMessages.delete(message.id), 10000);
 
     const content = message.content.toLowerCase().trim();
 
@@ -246,7 +260,7 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[content]);
     }
 
-    // ثانياً: شروط تفعيل الذكاء الاصطناعي (منشن، !ai، ريبلاي، أو بداية الرسالة بـ "يا بوت")
+    // ثانياً: شروط تفعيل الذكاء الاصطناعي
     const isMentioned = message.mentions.has(client.user);
     const isAiPrefix = content.startsWith('!ai') || content.startsWith('يا بوت');
     let isReplyToBot = false;
@@ -264,7 +278,6 @@ client.on('messageCreate', async message => {
         try {
             await message.channel.sendTyping();
             
-            // مسح الكلمات التفعيلية للحصول على السؤال فقط
             let cleanPrompt = message.content
                 .replace(/<@!?\d+>/g, '')
                 .replace(/^!ai/i, '')
