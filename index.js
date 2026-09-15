@@ -63,7 +63,7 @@ function saveLevels() {
     fs.writeFileSync(LEVELS_FILE, JSON.stringify(userLevels, null, 2));
 }
 
-// قائمة أسئلة كت تويت
+// قائمة أسئلة كت تويت مع رابط الصورة الثابت والفخم
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -123,6 +123,7 @@ client.once('ready', async () => {
     }
 });
 
+// دالة إنشاء إمبد الكت تويت مع الصورة الثابتة
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -168,9 +169,9 @@ client.on('interactionCreate', async interaction => {
                     .setTitle('🌟 قائمة أوامر البوت والاختصارات')
                     .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
-                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
+                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع الصورة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
                         { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
-                        { name: '🎮 التسلية والألعاب', value: '`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
+                        { name: '🎮 التسلية والألعاب', value: '`/كت` - سؤال كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
                         { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
                     )
                     .setThumbnail(client.user.displayAvatarURL())
@@ -339,7 +340,7 @@ client.on('interactionCreate', async interaction => {
     } catch (err) {}
 });
 
-// 6. الاستماع للرسائل والاختصارات الجديدة (+كت، +اقتراح، +م، +بند، +تف، +تايم)
+// 6. الاستماع للرسائل والاختصارات (+كت، +اقتراح، +م، +بند، +تف، +تايم)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -352,7 +353,7 @@ client.on('messageCreate', async message => {
     const content = message.content.trim();
     const lowerContent = content.toLowerCase();
 
-    // 1. اختصار (+كت)
+    // 1. اختصار (+كت) مع إرفاق الصورة الثابتة
     if (lowerContent === '+كت') {
         return message.channel.send(createCutEmbed(message.author));
     }
@@ -360,7 +361,7 @@ client.on('messageCreate', async message => {
     // 2. اختصار (+اقتراح [النص])
     if (lowerContent.startsWith('+اقتراح ')) {
         const suggestionText = content.slice(8).trim();
-        if (!suggestionText) return message.reply('❌ لطفاً اكتب الاقتراح بعد الأمر. مثال: `+اصلحوا البوت`');
+        if (!suggestionText) return message.reply('❌ لطفاً اكتب الاقتراح بعد الأمر. مثال: `+اقتراح افتحوا روم ميمز`');
         
         const sugChannel = message.guild.channels.cache.find(ch => ch.name.includes('اقتراحات') || ch.name.includes('suggestions')) || message.channel;
         const embed = new EmbedBuilder()
