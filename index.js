@@ -11,7 +11,7 @@ const {
     ButtonStyle,
     ChannelType
 } = require('discord.js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 const fs = require('fs');
 
 // 1. إعداد الـ Client
@@ -23,9 +23,10 @@ const client = new Client({
     ]
 });
 
-// 2. إعداد Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+// 2. إعداد Groq AI
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
+});
 
 // 3. ملف الردود التلقائية
 const DATA_FILE = './auto_responses.json';
@@ -226,7 +227,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي Gemini)
+// 7. الاستماع للرسائل (الرد التلقائي + الذكاء الاصطناعي Groq)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -269,9 +270,12 @@ client.on('messageCreate', async message => {
 
             if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
 
-            const result = await model.generateContent(cleanPrompt);
-            const response = await result.response;
-            const replyText = response.text() || 'عذراً، لم أستطع فهم ذلك.';
+            const chatCompletion = await groq.chat.completions.create({
+                messages: [{ role: 'user', content: cleanPrompt }],
+                model: 'llama-3.3-70b-versatile',
+            });
+
+            const replyText = chatCompletion.choices[0]?.message?.content || 'عذراً، لم أستطع فهم ذلك.';
             
             // تقسيم الرد إذا كان أطول من حد ديسكورد (2000 حرف)
             if (replyText.length > 2000) {
@@ -283,7 +287,7 @@ client.on('messageCreate', async message => {
                 await message.reply(replyText);
             }
         } catch (error) {
-            console.error('Gemini AI Error:', error);
+            console.error('Groq AI Error:', error);
             message.reply('حدث خطأ أثناء التواصل مع الذكاء الاصطناعي.');
         }
     }
