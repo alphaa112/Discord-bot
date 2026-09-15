@@ -63,7 +63,7 @@ function saveLevels() {
     fs.writeFileSync(LEVELS_FILE, JSON.stringify(userLevels, null, 2));
 }
 
-// قائمة أسئلة كت تويت مع رابط الصورة الثابت والفخم
+// قائمة أسئلة كت تويت مع رابط صورتك الخاصة المباشر
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -73,7 +73,7 @@ const cutQuestions = [
     "أفضل فيلم أو مسلسل شاهدته في حياتك؟ 🎬",
     "لو ترجع بالزمن لسنة واحدة، شنو التغيير اللي بتسويه؟ ⏳"
 ];
-const CUT_IMAGE_URL = 'https://i.ibb.co/C03vR20/green-tox.png';
+const CUT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1549253652789600297/1549393910764146788/content.png?ex=6aaa8906&is=6aa93786&hm=a2373177a3d40f3c4c6df6034ac9af4d46bba48d1bb9fc3de320651168be3a18&';
 
 const SYSTEM_PROMPT = {
     role: 'system',
@@ -83,7 +83,7 @@ const SYSTEM_PROMPT = {
 // 4. بناء الأوامر الأساسية (Slash Commands)
 const commands = [
     new SlashCommandBuilder().setName('مساعدة').setDescription('عرض قائمة جميع أوامر ومميزات البوت'),
-    new SlashCommandBuilder().setName('كت').setDescription('إرسال سؤال كت تويت عشوائي'),
+    new SlashCommandBuilder().setName('كت').setDescription('إرسال سؤال كت تويت عشوائي مع الصورة المخصصة'),
     new SlashCommandBuilder().setName('لوحة-التذاكر').setDescription('إرسال لوحة فتح التذاكر (للمشرفين)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new SlashCommandBuilder().setName('إضافة-رد').setDescription('إضافة رد تلقائي جديد')
@@ -123,7 +123,7 @@ client.once('ready', async () => {
     }
 });
 
-// دالة إنشاء إمبد الكت تويت مع الصورة الثابتة
+// دالة إنشاء إمبد الكت تويت مع صورتك الخاصة المعتمدة
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -169,7 +169,7 @@ client.on('interactionCreate', async interaction => {
                     .setTitle('🌟 قائمة أوامر البوت والاختصارات')
                     .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
-                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع الصورة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
+                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع صورتك الفخمة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
                         { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
                         { name: '🎮 التسلية والألعاب', value: '`/كت` - سؤال كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
                         { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
@@ -353,7 +353,7 @@ client.on('messageCreate', async message => {
     const content = message.content.trim();
     const lowerContent = content.toLowerCase();
 
-    // 1. اختصار (+كت) مع إرفاق الصورة الثابتة
+    // 1. اختصار (+كت) مع صورتك الخاصة
     if (lowerContent === '+كت') {
         return message.channel.send(createCutEmbed(message.author));
     }
@@ -503,14 +503,14 @@ client.on('messageCreate', async message => {
                 model: 'openai/gpt-oss-20b',
             });
 
-            const replyText = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
-            history.push({ role: 'assistant', content: replyText });
+            const replyTest = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
+            history.push({ role: 'assistant', content: replyTest });
 
-            if (replyText.length > 2000) {
-                const chunks = replyText.match(/[\s\S]{1,1900}/g) || [];
+            if (replyTest.length > 2000) {
+                const chunks = replyTest.match(/[\s\S]{1,1900}/g) || [];
                 for (const chunk of chunks) await message.reply(chunk);
             } else {
-                await message.reply(replyText);
+                await message.reply(replyTest);
             }
         } catch (error) {
             console.error('Groq AI Error:', error);
