@@ -24,7 +24,7 @@ const client = new Client({
 });
 
 // 2. إعداد Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // 3. ملف الردود التلقائية
@@ -40,7 +40,11 @@ if (fs.existsSync(DATA_FILE)) {
 }
 
 function saveResponses() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(autoResponses, null, 2));
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(autoResponses, null, 2));
+    } catch (err) {
+        console.error('خطأ في حفظ ملف الردود:', err);
+    }
 }
 
 // قائمة أسئلة كت تويت والصورة الخضراء
@@ -119,102 +123,106 @@ function createCutEmbed(user) {
 
 // 6. التعامل مع التفاعلات (Slash Commands & Buttons)
 client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        const { commandName, options, user, guild, channel } = interaction;
+    try {
+        if (interaction.isChatInputCommand()) {
+            const { commandName, options, user, channel } = interaction;
 
-        if (commandName === 'كت') {
-            await interaction.reply(createCutEmbed(user));
-        }
+            if (commandName === 'كت') {
+                await interaction.reply(createCutEmbed(user));
+            }
 
-        else if (commandName === 'لوحة-التذاكر') {
-            const embed = new EmbedBuilder()
-                .setColor('#57F287')
-                .setTitle('🎫 نظام الدعم الفني والتذاكر')
-                .setDescription('إضغط على الزر أسفله لفتح تذكرة وسيتم التواصل معك من قبل فريق الدعم الفني.');
+            else if (commandName === 'لوحة-التذاكر') {
+                const embed = new EmbedBuilder()
+                    .setColor('#57F287')
+                    .setTitle('🎫 نظام الدعم الفني والتذاكر')
+                    .setDescription('إضغط على الزر أسفله لفتح تذكرة وسيتم التواصل معك من قبل فريق الدعم الفني.');
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('create_ticket')
-                    .setLabel('فتح تذكرة 📩')
-                    .setStyle(ButtonStyle.Success)
-            );
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('create_ticket')
+                        .setLabel('فتح تذكرة 📩')
+                        .setStyle(ButtonStyle.Success)
+                );
 
-            await channel.send({ embeds: [embed], components: [row] });
-            await interaction.reply({ content: '✅ تم إرسال لوحة التذاكر بنجاح!', ephemeral: true });
-        }
+                await channel.send({ embeds: [embed], components: [row] });
+                await interaction.reply({ content: '✅ تم إرسال لوحة التذاكر بنجاح!', ephemeral: true });
+            }
 
-        else if (commandName === 'إضافة-رد') {
-            const trigger = options.getString('الكلمة').toLowerCase();
-            const response = options.getString('الرد');
-            autoResponses[trigger] = response;
-            saveResponses();
-            await interaction.reply({ content: `✅ تم إضافة الرد للكلمة: **${trigger}**`, ephemeral: true });
-        }
-
-        else if (commandName === 'حذف-رد') {
-            const trigger = options.getString('الكلمة').toLowerCase();
-            if (autoResponses[trigger]) {
-                delete autoResponses[trigger];
+            else if (commandName === 'إضافة-رد') {
+                const trigger = options.getString('الكلمة').toLowerCase();
+                const response = options.getString('الرد');
+                autoResponses[trigger] = response;
                 saveResponses();
-                await interaction.reply({ content: `🗑️ تم حذف الرد للكلمة: **${trigger}**`, ephemeral: true });
-            } else {
-                await interaction.reply({ content: `❌ الكلمة غير موجودة.`, ephemeral: true });
+                await interaction.reply({ content: `✅ تم إضافة الرد للكلمة: **${trigger}**`, ephemeral: true });
+            }
+
+            else if (commandName === 'حذف-رد') {
+                const trigger = options.getString('الكلمة').toLowerCase();
+                if (autoResponses[trigger]) {
+                    delete autoResponses[trigger];
+                    saveResponses();
+                    await interaction.reply({ content: `🗑️ تم حذف الرد للكلمة: **${trigger}**`, ephemeral: true });
+                } else {
+                    await interaction.reply({ content: `❌ الكلمة غير موجودة.`, ephemeral: true });
+                }
+            }
+
+            else if (commandName === 'الردود') {
+                const keys = Object.keys(autoResponses);
+                if (keys.length === 0) return interaction.reply({ content: '📭 لا يوجد ردود مسجلة.', ephemeral: true });
+                let listText = '📋 **الردود التلقائية:**\n\n' + keys.map((k, i) => `${i + 1}. **${k}** ➔ ${autoResponses[k]}`).join('\n');
+                await interaction.reply({ content: listText, ephemeral: true });
             }
         }
 
-        else if (commandName === 'الردود') {
-            const keys = Object.keys(autoResponses);
-            if (keys.length === 0) return interaction.reply({ content: '📭 لا يوجد ردود مسجلة.', ephemeral: true });
-            let listText = '📋 **الردود التلقائية:**\n\n' + keys.map((k, i) => `${i + 1}. **${k}** ➔ ${autoResponses[k]}`).join('\n');
-            await interaction.reply({ content: listText, ephemeral: true });
-        }
-    }
+        // الأزرار (Buttons)
+        else if (interaction.isButton()) {
+            const { customId, guild, user, channel } = interaction;
 
-    // الأزرار (Buttons)
-    else if (interaction.isButton()) {
-        const { customId, guild, user, channel } = interaction;
-
-        if (customId === 'next_cut_question') {
-            await interaction.update(createCutEmbed(user));
-        }
-
-        else if (customId === 'create_ticket') {
-            const ticketChannelName = `ticket-${user.username}`;
-            const existingChannel = guild.channels.cache.find(c => c.name === ticketChannelName);
-
-            if (existingChannel) {
-                return interaction.reply({ content: `❌ لديك تذكرة مفتوحة بالفعل: ${existingChannel}`, ephemeral: true });
+            if (customId === 'next_cut_question') {
+                await interaction.update(createCutEmbed(user));
             }
 
-            const ticketChannel = await guild.channels.create({
-                name: ticketChannelName,
-                type: ChannelType.GuildText,
-                permissionOverwrites: [
-                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                ]
-            });
+            else if (customId === 'create_ticket') {
+                const ticketChannelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+                const existingChannel = guild.channels.cache.find(c => c.name === ticketChannelName);
 
-            const closeEmbed = new EmbedBuilder()
-                .setColor('#ED4245')
-                .setTitle(`مرحباً بك ${user.username}`)
-                .setDescription('اكتب مشكلتك أو استفسارك هنا وسيرد عليك الإدارة قريباً.\n\nضغط الزر بالأسفل لإغلاق التذكرة.');
+                if (existingChannel) {
+                    return interaction.reply({ content: `❌ لديك تذكرة مفتوحة بالفعل: ${existingChannel}`, ephemeral: true });
+                }
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('إغلاق التذكرة 🔒')
-                    .setStyle(ButtonStyle.Danger)
-            );
+                const ticketChannel = await guild.channels.create({
+                    name: ticketChannelName,
+                    type: ChannelType.GuildText,
+                    permissionOverwrites: [
+                        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                        { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+                    ]
+                });
 
-            await ticketChannel.send({ embeds: [closeEmbed], components: [row] });
-            await interaction.reply({ content: `✅ تم فتح تذكرتك: ${ticketChannel}`, ephemeral: true });
+                const closeEmbed = new EmbedBuilder()
+                    .setColor('#ED4245')
+                    .setTitle(`مرحباً بك ${user.username}`)
+                    .setDescription('اكتب مشكلتك أو استفسارك هنا وسيرد عليك الإدارة قريباً.\n\nاضغط الزر بالأسفل لإغلاق التذكرة.');
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('close_ticket')
+                        .setLabel('إغلاق التذكرة 🔒')
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+                await ticketChannel.send({ embeds: [closeEmbed], components: [row] });
+                await interaction.reply({ content: `✅ تم فتح تذكرتك: ${ticketChannel}`, ephemeral: true });
+            }
+
+            else if (customId === 'close_ticket') {
+                await interaction.reply('🔒 جاري إغلاق التذكرة خلال 5 ثوانٍ...');
+                setTimeout(() => channel.delete().catch(() => {}), 5000);
+            }
         }
-
-        else if (customId === 'close_ticket') {
-            await interaction.reply('🔒 جاري إغلاق التذكرة خلال 5 ثوانٍ...');
-            setTimeout(() => channel.delete(), 5000);
-        }
+    } catch (err) {
+        console.error('Interaction Error:', err);
     }
 });
 
@@ -229,10 +237,21 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[content]);
     }
 
-    // ثانياً: شروط تفعيل الذكاء الاصطناعي (منشن، أو بادئة !ai، أو رد على رسالة البوت)
+    // ثانياً: شروط تفعيل الذكاء الاصطناعي
     const isMentioned = message.mentions.has(client.user);
     const isAiPrefix = content.startsWith('!ai');
-    const isReplyToBot = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
+    let isReplyToBot = false;
+
+    if (message.reference && message.reference.messageId) {
+        try {
+            const referencedMsg = await message.channel.messages.fetch(message.reference.messageId);
+            if (referencedMsg && referencedMsg.author.id === client.user.id) {
+                isReplyToBot = true;
+            }
+        } catch (e) {
+            // تجاهل خطأ جلب الرسالة القديمة
+        }
+    }
 
     if (isMentioned || isAiPrefix || isReplyToBot) {
         try {
@@ -252,7 +271,7 @@ client.on('messageCreate', async message => {
             
             // تقسيم الرد إذا كان أطول من حد ديسكورد (2000 حرف)
             if (replyText.length > 2000) {
-                const chunks = replyText.match(/[\s\S]{1,1900}/g);
+                const chunks = replyText.match(/[\s\S]{1,1900}/g) || [];
                 for (const chunk of chunks) {
                     await message.reply(chunk);
                 }
