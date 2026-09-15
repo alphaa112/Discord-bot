@@ -63,7 +63,7 @@ function saveLevels() {
     fs.writeFileSync(LEVELS_FILE, JSON.stringify(userLevels, null, 2));
 }
 
-// قائمة أسئلة كت تويت مع رابط صورتك الخاصة المباشر
+// قائمة أسئلة كت تويت مع الرابط الجديد المباشر والصحيح
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -73,7 +73,7 @@ const cutQuestions = [
     "أفضل فيلم أو مسلسل شاهدته في حياتك؟ 🎬",
     "لو ترجع بالزمن لسنة واحدة، شنو التغيير اللي بتسويه؟ ⏳"
 ];
-const CUT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1549253652789600297/1549393910764146788/content.png?ex=6aaa8906&is=6aa93786&hm=a2373177a3d40f3c4c6df6034ac9af4d46bba48d1bb9fc3de320651168be3a18&';
+const CUT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1549253652789600297/1549395347531497533/extracted_embed_image.png?ex=6aaa8a5d&is=6aa938dd&hm=868fa29caefde283aac731f124aa541b76c644ad28e84a5c3944369edf9d86f5&';
 
 const SYSTEM_PROMPT = {
     role: 'system',
@@ -123,7 +123,7 @@ client.once('ready', async () => {
     }
 });
 
-// دالة إنشاء إمبد الكت تويت مع صورتك الخاصة المعتمدة
+// دالة إنشاء إمبد الكت تويت مع الصورة الجديدة
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -169,7 +169,7 @@ client.on('interactionCreate', async interaction => {
                     .setTitle('🌟 قائمة أوامر البوت والاختصارات')
                     .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
-                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع صورتك الفخمة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
+                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت (مع صورتك الفخمة الجديدة)\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
                         { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
                         { name: '🎮 التسلية والألعاب', value: '`/كت` - سؤال كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
                         { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
@@ -353,7 +353,7 @@ client.on('messageCreate', async message => {
     const content = message.content.trim();
     const lowerContent = content.toLowerCase();
 
-    // 1. اختصار (+كت) مع صورتك الخاصة
+    // 1. اختصار (+كت) مع صورتك الجديدة
     if (lowerContent === '+كت') {
         return message.channel.send(createCutEmbed(message.author));
     }
@@ -503,14 +503,14 @@ client.on('messageCreate', async message => {
                 model: 'openai/gpt-oss-20b',
             });
 
-            const replyTest = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
-            history.push({ role: 'assistant', content: replyTest });
+            const replyText = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
+            history.push({ role: 'assistant', content: replyText });
 
-            if (replyTest.length > 2000) {
-                const chunks = replyTest.match(/[\s\S]{1,1900}/g) || [];
+            if (replyText.length > 2000) {
+                const chunks = replyText.match(/[\s\S]{1,1900}/g) || [];
                 for (const chunk of chunks) await message.reply(chunk);
             } else {
-                await message.reply(replyTest);
+                await message.reply(replyText);
             }
         } catch (error) {
             console.error('Groq AI Error:', error);
