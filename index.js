@@ -11,7 +11,7 @@ const {
     ButtonStyle,
     ChannelType
 } = require('discord.js');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 
 // 1. إعداد الـ Client
@@ -23,8 +23,9 @@ const client = new Client({
     ]
 });
 
-// 2. إعداد Gemini AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// 2. إعداد Gemini AI (المكتبة المستقرة)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // 3. ملف الردود التلقائية
 const DATA_FILE = './auto_responses.json';
@@ -237,12 +238,9 @@ client.on('messageCreate', async message => {
             const cleanPrompt = message.content.replace(/<@!?\d+>/g, '').trim();
             if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: cleanPrompt,
-            });
-
-            const replyText = response.text || 'عذراً، لم أستطع فهم ذلك.';
+            const result = await model.generateContent(cleanPrompt);
+            const response = await result.response;
+            const replyText = response.text() || 'عذراً، لم أستطع فهم ذلك.';
             
             // تقسيم الرد إذا كان أطول من حد ديسكورد (2000 حرف)
             if (replyText.length > 2000) {
