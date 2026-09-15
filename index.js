@@ -82,6 +82,8 @@ const SYSTEM_PROMPT = {
 
 // 4. بناء كافة أوامر السلاش
 const commands = [
+    new SlashCommandBuilder().setName('مساعدة').setDescription('عرض قائمة جميع أوامر ومميزات البوت'),
+
     new SlashCommandBuilder().setName('كت').setDescription('إرسال سؤال كت تويت عشوائي'),
     
     new SlashCommandBuilder().setName('لوحة-التذاكر').setDescription('إرسال لوحة فتح التذاكر (للمشرفين)')
@@ -98,7 +100,6 @@ const commands = [
 
     new SlashCommandBuilder().setName('الردود').setDescription('عرض الردود التلقائية'),
 
-    // الأوامر الجديدة
     new SlashCommandBuilder().setName('مستواي').setDescription('عرض مستواك ونقاط خبرتك في السيرفر'),
 
     new SlashCommandBuilder().setName('تخمين').setDescription('لعبة تخمين رقم عشوائي من 1 إلى 50'),
@@ -178,7 +179,26 @@ client.on('interactionCreate', async interaction => {
         if (interaction.isChatInputCommand()) {
             const { commandName, options, user, guild, channel } = interaction;
 
-            if (commandName === 'كت') {
+            if (commandName === 'مساعدة') {
+                const helpEmbed = new EmbedBuilder()
+                    .setColor('#57F287')
+                    .setTitle('🌟 قائمة أوامر البوت (Help Menu)')
+                    .setDescription('مرحباً بك! البوت مصمم ليقدم لك أفضل تجربة. إليك جميع الأوامر مقسمة حسب الفئات:')
+                    .addFields(
+                        { name: '🤖 الذكاء الاصطناعي والمحادثة', value: 'تحدث معي مباشرة بمنشني، أو اكتب `!ai` أو `يا بوت` قبل رسالتك للرد عليك بالذكاء الاصطناعي.', inline: false },
+                        { name: '🎮 التسلية والألعاب', value: '`/كت` - أسئلة كت تويت للنقاش\n`/تخمين` - لعبة تخمين الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
+                        { name: '🎟️ الدعم والاقتراحات', value: '`/لوحة-التذاكر` - إرسال لوحة فتح التذاكر (للإدارة)\n`/اقترح` - إرسال اقتراح لتطوير السيرفر', inline: false },
+                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - عرض نقاطك ومستواك الحالي\n`/سيرفر` - معلومات وإحصائيات السيرفر\n`/حسابي` - تفاصيل حسابك الشخصي', inline: false },
+                        { name: '⚙️ الإدارة والردود التلقائية', value: '`/إضافة-رد` - إضافة رد لكلمة معينة\n`/حذف-رد` - إزالة رد مسجل\n`/الردود` - عرض جميع الردود التلقائية', inline: false }
+                    )
+                    .setThumbnail(client.user.displayAvatarURL())
+                    .setFooter({ text: `طلب بواسطة ${user.username}`, iconURL: user.displayAvatarURL() })
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [helpEmbed] });
+            }
+
+            else if (commandName === 'كت') {
                 await interaction.reply(createCutEmbed(user));
             }
 
@@ -222,7 +242,6 @@ client.on('interactionCreate', async interaction => {
                 await interaction.reply({ content: listText, ephemeral: true });
             }
 
-            // الميزات الجديدة:
             else if (commandName === 'مستواي') {
                 const data = userLevels[user.id] || { xp: 0, level: 1 };
                 const embed = new EmbedBuilder()
