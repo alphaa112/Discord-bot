@@ -23,7 +23,7 @@ const client = new Client({
     ]
 });
 
-// 2. إعداد Gemini AI (المكتبة المستقرة)
+// 2. إعداد Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
@@ -86,12 +86,12 @@ const commands = [
 
 // 5. عند تشغيل البوت
 client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('تم تسجيل أوامر السلاش بنجاح!');
+        console.log('تم تسجيل وتأمين أوامر السلاش بنجاح!');
     } catch (error) {
         console.error('خطأ تسجيل الأوامر:', error);
     }
@@ -229,13 +229,21 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[content]);
     }
 
-    // ثانياً: إذا تم الإشارة للبوت (Mention) أو الرد على رسالته -> استخدام Gemini AI
-    if (message.mentions.has(client.user) || (message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id)) {
+    // ثانياً: شروط تفعيل الذكاء الاصطناعي (منشن، أو بادئة !ai، أو رد على رسالة البوت)
+    const isMentioned = message.mentions.has(client.user);
+    const isAiPrefix = content.startsWith('!ai');
+    const isReplyToBot = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === client.user.id;
+
+    if (isMentioned || isAiPrefix || isReplyToBot) {
         try {
             await message.channel.sendTyping();
             
-            // تنظيف النص من المنشن
-            const cleanPrompt = message.content.replace(/<@!?\d+>/g, '').trim();
+            // تنظيف النص من المنشن ومن كلمة !ai
+            let cleanPrompt = message.content
+                .replace(/<@!?\d+>/g, '')
+                .replace(/^!ai/i, '')
+                .trim();
+
             if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
 
             const result = await model.generateContent(cleanPrompt);
