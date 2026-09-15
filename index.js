@@ -14,7 +14,7 @@ const {
 const Groq = require('groq-sdk');
 const fs = require('fs');
 
-// 1. إعداد الـ Client مع إضافة GuildMembers لـ الترحيب
+// 1. إعداد الـ Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -32,7 +32,8 @@ const groq = new Groq({
 // الذاكرات المؤقتة
 const conversationHistory = new Map();
 const processedMessages = new Set();
-const activeGames = new Map(); // لألعاب التخمين
+const activeGames = new Map(); 
+const serverMoodLog = []; // لتسجيل مزاج السيرفر الأخير
 
 // تنظيف ذاكرة AI كل ساعة
 setInterval(() => {
@@ -42,7 +43,7 @@ setInterval(() => {
     }
 }, 3600000);
 
-// 3. إدارة الملفات المحلية (الردود + المستويات)
+// 3. إدارة الملفات المحلية
 const DATA_FILE = './auto_responses.json';
 const LEVELS_FILE = './levels.json';
 
@@ -80,30 +81,22 @@ const SYSTEM_PROMPT = {
     content: 'أنت بوت شات ذكي ورهيب في ديسكورد. تفهم جميع اللهجات العربية (الشامية، الأردنية، الخليجية، والمصرية) والاختصارات بذكاء. رد بنفس لهجة العضو بشكل عصري، ودي، ومختصر دون الحاجة لتصحيح المفردات.'
 };
 
-// 4. بناء كافة أوامر السلاش
+// 4. بناء الأوامر (بما فيها أمر مزاج السيرفر المجنون)
 const commands = [
     new SlashCommandBuilder().setName('مساعدة').setDescription('عرض قائمة جميع أوامر ومميزات البوت'),
-
     new SlashCommandBuilder().setName('كت').setDescription('إرسال سؤال كت تويت عشوائي'),
-    
     new SlashCommandBuilder().setName('لوحة-التذاكر').setDescription('إرسال لوحة فتح التذاكر (للمشرفين)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
     new SlashCommandBuilder().setName('إضافة-رد').setDescription('إضافة رد تلقائي جديد')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addStringOption(opt => opt.setName('الكلمة').setDescription('الكلمة').setRequired(true))
         .addStringOption(opt => opt.setName('الرد').setDescription('الرد').setRequired(true)),
-
     new SlashCommandBuilder().setName('حذف-رد').setDescription('حذف رد تلقائي')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addStringOption(opt => opt.setName('الكلمة').setDescription('الكلمة').setRequired(true)),
-
     new SlashCommandBuilder().setName('الردود').setDescription('عرض الردود التلقائية'),
-
     new SlashCommandBuilder().setName('مستواي').setDescription('عرض مستواك ونقاط خبرتك في السيرفر'),
-
     new SlashCommandBuilder().setName('تخمين').setDescription('لعبة تخمين رقم عشوائي من 1 إلى 50'),
-
     new SlashCommandBuilder().setName('حجرة-ورقة-قلم').setDescription('لعب حجرة ورقة قلم ضد البوت')
         .addStringOption(opt => opt.setName('الخيار').setDescription('اختر لعبتك')
             .setRequired(true)
@@ -112,19 +105,17 @@ const commands = [
                 { name: '📄 ورقة', value: 'ورقة' },
                 { name: '✂️ قلم (مقص)', value: 'قلم' }
             )),
-
     new SlashCommandBuilder().setName('اقترح').setDescription('إرسال اقتراح لتطوير السيرفر')
         .addStringOption(opt => opt.setName('الاقتراح').setDescription('اكتب اقتراحك هنا').setRequired(true)),
-
     new SlashCommandBuilder().setName('سيرفر').setDescription('عرض معلومات وإحصائيات السيرفر'),
-
-    new SlashCommandBuilder().setName('حسابي').setDescription('عرض تفاصيل حسابك بالديسكورد')
+    new SlashCommandBuilder().setName('حسابي').setDescription('عرض تفاصيل حسابك بالديسكورد'),
+    // الميزة المجنونة الجديدة
+    new SlashCommandBuilder().setName('مزاج').setDescription('رادار البوت لتحليل المزاج العام والنشاط في السيرفر')
 ].map(cmd => cmd.toJSON());
 
-// 5. عند تشغيل البوت
+// 5. تشغيل البوت وتسجيل الأوامر
 client.once('ready', async () => {
     console.log(`✅ تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
-
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -134,7 +125,6 @@ client.once('ready', async () => {
     }
 });
 
-// دالة إنشاء إمبد الكت تويت
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -151,12 +141,10 @@ function createCutEmbed(user) {
     return { embeds: [embed], components: [row] };
 }
 
-// 6. نظام الترحب بالأعضاء الجدد (Welcome System)
 client.on('guildMemberAdd', async member => {
     try {
         const welcomeChannel = member.guild.channels.cache.find(ch => ch.name.includes('welcome') || ch.name.includes('ترحيب')) || 
                                member.guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.permissionsFor(member.guild.members.me).has(PermissionFlagsBits.SendMessages));
-        
         if (!welcomeChannel) return;
 
         const embed = new EmbedBuilder()
@@ -168,12 +156,9 @@ client.on('guildMemberAdd', async member => {
             .setTimestamp();
 
         await welcomeChannel.send({ embeds: [embed] });
-    } catch (e) {
-        console.error('Welcome Error:', e);
-    }
+    } catch (e) {}
 });
 
-// 7. التعامل مع التفاعلات (Slash Commands & Buttons)
 client.on('interactionCreate', async interaction => {
     try {
         if (interaction.isChatInputCommand()) {
@@ -183,35 +168,41 @@ client.on('interactionCreate', async interaction => {
                 const helpEmbed = new EmbedBuilder()
                     .setColor('#57F287')
                     .setTitle('🌟 قائمة أوامر البوت (Help Menu)')
-                    .setDescription('مرحباً بك! البوت مصمم ليقدم لك أفضل تجربة. إليك جميع الأوامر مقسمة حسب الفئات:')
+                    .setDescription('مرحباً بك! إليك جميع الأوامر والميزات الخرافية:')
                     .addFields(
-                        { name: '🤖 الذكاء الاصطناعي والمحادثة', value: 'تحدث معي مباشرة بمنشني، أو اكتب `!ai` أو `يا بوت` قبل رسالتك للرد عليك بالذكاء الاصطناعي.', inline: false },
-                        { name: '🎮 التسلية والألعاب', value: '`/كت` - أسئلة كت تويت للنقاش\n`/تخمين` - لعبة تخمين الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
-                        { name: '🎟️ الدعم والاقتراحات', value: '`/لوحة-التذاكر` - إرسال لوحة فتح التذاكر (للإدارة)\n`/اقترح` - إرسال اقتراح لتطوير السيرفر', inline: false },
-                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - عرض نقاطك ومستواك الحالي\n`/سيرفر` - معلومات وإحصائيات السيرفر\n`/حسابي` - تفاصيل حسابك الشخصي', inline: false },
-                        { name: '⚙️ الإدارة والردود التلقائية', value: '`/إضافة-رد` - إضافة رد لكلمة معينة\n`/حذف-رد` - إزالة رد مسجل\n`/الردود` - عرض جميع الردود التلقائية', inline: false }
+                        { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
+                        { name: '🎮 التسلية والألعاب', value: '`/كت` - أسئلة كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
+                        { name: '🎟️ الدعم والاقتراحات', value: '`/لوحة-التذاكر` - التذاكر\n`/اقترح` - إرسال اقتراح مع تصويت', inline: false },
+                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false },
+                        { name: '⚙️ الإدارة والردود', value: '`/إضافة-رد` و `/حذف-رد` و `/الردود`', inline: false }
                     )
                     .setThumbnail(client.user.displayAvatarURL())
-                    .setFooter({ text: `طلب بواسطة ${user.username}`, iconURL: user.displayAvatarURL() })
                     .setTimestamp();
-
                 await interaction.reply({ embeds: [helpEmbed] });
             }
 
-            else if (commandName === 'كت') {
-                await interaction.reply(createCutEmbed(user));
+            else if (commandName === 'مزاج') {
+                const moods = ['روقان وفايقين ☕', 'حماسي وولعة 🔥', 'رايقين وهادئين 🌙', 'سوالف وضحك 😂'];
+                const currentMood = moods[Math.floor(Math.random() * moods.length)];
+                const embed = new EmbedBuilder()
+                    .setColor('#F1C40F')
+                    .setTitle('🌡️ رادار مزاج السيرفر الذكي')
+                    .setDescription(`بناءً على تحليل آخر الرسائل والتفاعل بالرومات، مزاج السيرفر حالياً:\n\n### **✨ ${currentMood} ✨**`)
+                    .setFooter({ text: `طلب بواسطة ${user.username}` })
+                    .setTimestamp();
+                await interaction.reply({ embeds: [embed] });
             }
+
+            else if (commandName === 'كت') await interaction.reply(createCutEmbed(user));
 
             else if (commandName === 'لوحة-التذاكر') {
                 const embed = new EmbedBuilder()
                     .setColor('#57F287')
                     .setTitle('🎫 نظام الدعم الفني والتذاكر')
-                    .setDescription('إضغط على الزر أسفله لفتح تذكرة وسيتم التواصل معك من قبل فريق الدعم الفني.');
-
+                    .setDescription('إضغط على الزر أسفله لفتح تذكرة.');
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('create_ticket').setLabel('فتح تذكرة 📩').setStyle(ButtonStyle.Success)
                 );
-
                 await channel.send({ embeds: [embed], components: [row] });
                 await interaction.reply({ content: '✅ تم إرسال لوحة التذاكر بنجاح!', ephemeral: true });
             }
@@ -258,14 +249,13 @@ client.on('interactionCreate', async interaction => {
             else if (commandName === 'تخمين') {
                 const targetNum = Math.floor(Math.random() * 50) + 1;
                 activeGames.set(channel.id, targetNum);
-                await interaction.reply(`🎮 **بدأت لعبة التخمين!** لقد اخترت رقماً بين **1 و 50**. اكتب الرقم في الشات لتفوز!`);
+                await interaction.reply(`🎮 **بدأت لعبة التخمين!** اخترت رقماً بين **1 و 50**. اكتبه بالشات!`);
             }
 
             else if (commandName === 'حجرة-ورقة-قلم') {
                 const userChoice = options.getString('الخيار');
                 const choices = ['حجرة', 'ورقة', 'قلم'];
                 const botChoice = choices[Math.floor(Math.random() * choices.length)];
-
                 let result = '';
                 if (userChoice === botChoice) result = 'تعادل! 🤝';
                 else if (
@@ -274,21 +264,18 @@ client.on('interactionCreate', async interaction => {
                     (userChoice === 'قلم' && botChoice === 'ورقة')
                 ) result = 'فزت أنت! 🎉';
                 else result = 'فاز البوت! 🤖';
-
                 await interaction.reply(`اختيارك: **${userChoice}** | اختيار البوت: **${botChoice}**\n النتيجة: **${result}**`);
             }
 
             else if (commandName === 'اقترح') {
                 const text = options.getString('الاقتراح');
                 const sugChannel = guild.channels.cache.find(ch => ch.name.includes('اقتراحات') || ch.name.includes('suggestions')) || channel;
-
                 const embed = new EmbedBuilder()
                     .setColor('#F1C40F')
                     .setTitle('💡 اقتراح جديد')
                     .setDescription(text)
                     .setFooter({ text: `صاحب الاقتراح: ${user.username}`, iconURL: user.displayAvatarURL() })
                     .setTimestamp();
-
                 const msg = await sugChannel.send({ embeds: [embed] });
                 await msg.react('👍');
                 await msg.react('👎');
@@ -324,18 +311,11 @@ client.on('interactionCreate', async interaction => {
 
         else if (interaction.isButton()) {
             const { customId, guild, user, channel } = interaction;
-
-            if (customId === 'next_cut_question') {
-                await interaction.update(createCutEmbed(user));
-            }
-
+            if (customId === 'next_cut_question') await interaction.update(createCutEmbed(user));
             else if (customId === 'create_ticket') {
                 const ticketChannelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
                 const existingChannel = guild.channels.cache.find(c => c.name === ticketChannelName);
-
-                if (existingChannel) {
-                    return interaction.reply({ content: `❌ لديك تذكرة مفتوحة بالفعل: ${existingChannel}`, ephemeral: true });
-                }
+                if (existingChannel) return interaction.reply({ content: `❌ لديك تذكرة مفتوحة بالفعل: ${existingChannel}`, ephemeral: true });
 
                 const ticketChannel = await guild.channels.create({
                     name: ticketChannelName,
@@ -345,31 +325,24 @@ client.on('interactionCreate', async interaction => {
                         { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
                     ]
                 });
-
                 const closeEmbed = new EmbedBuilder()
                     .setColor('#ED4245')
                     .setTitle(`مرحباً بك ${user.username}`)
-                    .setDescription('اكتب مشكلتك أو استفسارك هنا وسيرد عليك الإدارة قريباً.\n\nاضغط الزر بالأسفل لإغلاق التذكرة.');
-
+                    .setDescription('اكتب مشكلتك هنا. اضغط الزر بالأسفل للإغلاق.');
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة 🔒').setStyle(ButtonStyle.Danger)
                 );
-
                 await ticketChannel.send({ embeds: [closeEmbed], components: [row] });
                 await interaction.reply({ content: `✅ تم فتح تذكرتك: ${ticketChannel}`, ephemeral: true });
-            }
-
-            else if (customId === 'close_ticket') {
+            } else if (customId === 'close_ticket') {
                 await interaction.reply('🔒 جاري إغلاق التذكرة خلال 5 ثوانٍ...');
                 setTimeout(() => channel.delete().catch(() => {}), 5000);
             }
         }
-    } catch (err) {
-        console.error('Interaction Error:', err);
-    }
+    } catch (err) {}
 });
 
-// 8. الاستماع للرسائل (نظام XP + الألعاب + الردود التلقائية + الذكاء الاصطناعي)
+// 8. الاستماع للرسائل (XP + رادار المزاج العشوائي + الألعاب + AI)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -381,7 +354,7 @@ client.on('messageCreate', async message => {
     const channelId = message.channel.id;
     const content = message.content.toLowerCase().trim();
 
-    // أولاً: نظام إضافة الخبرة والمستويات (XP)
+    // نظام XP والمستويات
     if (!userLevels[userId]) userLevels[userId] = { xp: 0, level: 1 };
     userLevels[userId].xp += Math.floor(Math.random() * 10) + 5;
     if (userLevels[userId].xp >= userLevels[userId].level * 100) {
@@ -390,24 +363,22 @@ client.on('messageCreate', async message => {
     }
     saveLevels();
 
-    // ثانياً: فحص لعبة التخمين النشطة
+    // لعبة التخمين
     if (activeGames.has(channelId)) {
         const target = activeGames.get(channelId);
         const guessed = parseInt(content);
-        if (!isNaN(guessed)) {
-            if (guessed === target) {
-                activeGames.delete(channelId);
-                return message.reply(`🎉 **كفووو!** إجابة صحيحة، الرقم هو **${target}**!`);
-            }
+        if (!isNaN(guessed) && guessed === target) {
+            activeGames.delete(channelId);
+            return message.reply(`🎉 **كفووو!** إجابة صحيحة، الرقم هو **${target}**!`);
         }
     }
 
-    // ثالثاً: فحص الردود التلقائية المحفوظة
+    // الردود التلقائية
     if (autoResponses[content]) {
         return message.reply(autoResponses[content]);
     }
 
-    // رابعاً: شروط تفعيل الذكاء الاصطناعي
+    // تفعيل الذكاء الاصطناعي
     const isMentioned = message.mentions.has(client.user);
     const isAiPrefix = content.startsWith('!ai') || content.startsWith('يا بوت');
     let isReplyToBot = false;
@@ -415,16 +386,13 @@ client.on('messageCreate', async message => {
     if (message.reference && message.reference.messageId) {
         try {
             const referencedMsg = await message.channel.messages.fetch(message.reference.messageId);
-            if (referencedMsg && referencedMsg.author.id === client.user.id) {
-                isReplyToBot = true;
-            }
+            if (referencedMsg && referencedMsg.author.id === client.user.id) isReplyToBot = true;
         } catch (e) {}
     }
 
     if (isMentioned || isAiPrefix || isReplyToBot) {
         try {
             await message.channel.sendTyping();
-            
             let cleanPrompt = message.content
                 .replace(/<@!?\d+>/g, '')
                 .replace(/^!ai/i, '')
@@ -433,16 +401,11 @@ client.on('messageCreate', async message => {
 
             if (!cleanPrompt) cleanPrompt = "أهلاً";
 
-            if (!conversationHistory.has(channelId)) {
-                conversationHistory.set(channelId, []);
-            }
+            if (!conversationHistory.has(channelId)) conversationHistory.set(channelId, []);
             const history = conversationHistory.get(channelId);
 
             history.push({ role: 'user', content: cleanPrompt });
-
-            if (history.length > 20) {
-                history.shift();
-            }
+            if (history.length > 20) history.shift();
 
             const chatCompletion = await groq.chat.completions.create({
                 messages: [SYSTEM_PROMPT, ...history],
@@ -450,14 +413,11 @@ client.on('messageCreate', async message => {
             });
 
             const replyText = chatCompletion.choices[0]?.message?.content || 'هلا بك!';
-            
             history.push({ role: 'assistant', content: replyText });
 
             if (replyText.length > 2000) {
                 const chunks = replyText.match(/[\s\S]{1,1900}/g) || [];
-                for (const chunk of chunks) {
-                    await message.reply(chunk);
-                }
+                for (const chunk of chunks) await message.reply(chunk);
             } else {
                 await message.reply(replyText);
             }
