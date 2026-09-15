@@ -257,11 +257,15 @@ client.on('messageCreate', async message => {
         try {
             await message.channel.sendTyping();
             
-            // تنظيف النص من المنشن ومن كلمة !ai
+            // تنظيف النص وضمان معالجة الـ Reply بدقة
             let cleanPrompt = message.content
                 .replace(/<@!?\d+>/g, '')
                 .replace(/^!ai/i, '')
                 .trim();
+
+            if (!cleanPrompt && message.content) {
+                cleanPrompt = message.content.trim();
+            }
 
             if (!cleanPrompt) return message.reply('نعم! كيف أستطيع مساعدتك؟');
 
