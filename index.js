@@ -33,7 +33,6 @@ const groq = new Groq({
 const conversationHistory = new Map();
 const processedMessages = new Set();
 const activeGames = new Map(); 
-const serverMoodLog = []; // لتسجيل مزاج السيرفر الأخير
 
 // تنظيف ذاكرة AI كل ساعة
 setInterval(() => {
@@ -81,7 +80,7 @@ const SYSTEM_PROMPT = {
     content: 'أنت بوت شات ذكي ورهيب في ديسكورد. تفهم جميع اللهجات العربية (الشامية، الأردنية، الخليجية، والمصرية) والاختصارات بذكاء. رد بنفس لهجة العضو بشكل عصري، ودي، ومختصر دون الحاجة لتصحيح المفردات.'
 };
 
-// 4. بناء الأوامر (بما فيها أمر مزاج السيرفر المجنون)
+// 4. بناء الأوامر الأساسية (Slash Commands)
 const commands = [
     new SlashCommandBuilder().setName('مساعدة').setDescription('عرض قائمة جميع أوامر ومميزات البوت'),
     new SlashCommandBuilder().setName('كت').setDescription('إرسال سؤال كت تويت عشوائي'),
@@ -109,11 +108,10 @@ const commands = [
         .addStringOption(opt => opt.setName('الاقتراح').setDescription('اكتب اقتراحك هنا').setRequired(true)),
     new SlashCommandBuilder().setName('سيرفر').setDescription('عرض معلومات وإحصائيات السيرفر'),
     new SlashCommandBuilder().setName('حسابي').setDescription('عرض تفاصيل حسابك بالديسكورد'),
-    // الميزة المجنونة الجديدة
     new SlashCommandBuilder().setName('مزاج').setDescription('رادار البوت لتحليل المزاج العام والنشاط في السيرفر')
 ].map(cmd => cmd.toJSON());
 
-// 5. تشغيل البوت وتسجيل الأوامر
+// 5. تشغيل البوت
 client.once('ready', async () => {
     console.log(`✅ تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -167,14 +165,13 @@ client.on('interactionCreate', async interaction => {
             if (commandName === 'مساعدة') {
                 const helpEmbed = new EmbedBuilder()
                     .setColor('#57F287')
-                    .setTitle('🌟 قائمة أوامر البوت (Help Menu)')
-                    .setDescription('مرحباً بك! إليك جميع الأوامر والميزات الخرافية:')
+                    .setTitle('🌟 قائمة أوامر البوت والاختصارات')
+                    .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
+                        { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
                         { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
-                        { name: '🎮 التسلية والألعاب', value: '`/كت` - أسئلة كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
-                        { name: '🎟️ الدعم والاقتراحات', value: '`/لوحة-التذاكر` - التذاكر\n`/اقترح` - إرسال اقتراح مع تصويت', inline: false },
-                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false },
-                        { name: '⚙️ الإدارة والردود', value: '`/إضافة-رد` و `/حذف-رد` و `/الردود`', inline: false }
+                        { name: '🎮 التسلية والألعاب', value: '`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
+                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
                     )
                     .setThumbnail(client.user.displayAvatarURL())
                     .setTimestamp();
@@ -342,7 +339,7 @@ client.on('interactionCreate', async interaction => {
     } catch (err) {}
 });
 
-// 8. الاستماع للرسائل (XP + رادار المزاج العشوائي + الألعاب + AI)
+// 6. الاستماع للرسائل والاختصارات الجديدة (+كت، +اقتراح، +م، +بند، +تف، +تايم)
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -352,7 +349,100 @@ client.on('messageCreate', async message => {
 
     const userId = message.author.id;
     const channelId = message.channel.id;
-    const content = message.content.toLowerCase().trim();
+    const content = message.content.trim();
+    const lowerContent = content.toLowerCase();
+
+    // 1. اختصار (+كت)
+    if (lowerContent === '+كت') {
+        return message.channel.send(createCutEmbed(message.author));
+    }
+
+    // 2. اختصار (+اقتراح [النص])
+    if (lowerContent.startsWith('+اقتراح ')) {
+        const suggestionText = content.slice(8).trim();
+        if (!suggestionText) return message.reply('❌ لطفاً اكتب الاقتراح بعد الأمر. مثال: `+اصلحوا البوت`');
+        
+        const sugChannel = message.guild.channels.cache.find(ch => ch.name.includes('اقتراحات') || ch.name.includes('suggestions')) || message.channel;
+        const embed = new EmbedBuilder()
+            .setColor('#F1C40F')
+            .setTitle('💡 اقتراح جديد')
+            .setDescription(suggestionText)
+            .setFooter({ text: `صاحب الاقتراح: ${message.author.username}`, iconURL: message.author.displayAvatarURL() })
+            .setTimestamp();
+        
+        const msg = await sugChannel.send({ embeds: [embed] });
+        await msg.react('👍');
+        await msg.react('👎');
+        return message.reply({ content: '✅ تم إرسال اقتراحك بنجاح!' });
+    }
+
+    // 3. اختصار مسح الرسائل (+م [العدد])
+    if (lowerContent.startsWith('+م ')) {
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+            return message.reply('❌ ليس لديك صلاحية لإدارة الرسائل (`Manage Messages`)!');
+        }
+        const args = content.split(' ');
+        const count = parseInt(args[1]);
+        if (isNaN(count) || count < 1 || count > 100) {
+            return message.reply('❌ لطفاً حدد رقماً صحيحاً بين 1 و 100. مثال: `+م 10`');
+        }
+        try {
+            await message.delete().catch(() => {});
+            const deleted = await message.channel.bulkDelete(count, true);
+            const reply = await message.channel.send(`✅ تم مسح **${deleted.size}** رسالة بنجاح!`);
+            setTimeout(() => reply.delete().catch(() => {}), 3000);
+        } catch (e) {
+            message.reply('❌ حدث خطأ، لا يمكنني مسح رسائل أقدم من 14 يوماً.');
+        }
+        return;
+    }
+
+    // 4. اختصار الباند (+بند [@عضو])
+    if (lowerContent.startsWith('+بند')) {
+        if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+            return message.reply('❌ ليس لديك صلاحية حظر الأعضاء (`Ban Members`)!');
+        }
+        const target = message.mentions.members.first();
+        if (!target) return message.reply('❌ يرجى منشن العضو المراد حظره. مثال: `+بند @user`');
+        if (!target.bannable) return message.reply('❌ لا يمكنني حظر هذا العضو، رتبته أعلى مني أو هو صاحب السيرفر!');
+
+        await target.ban({ reason: `بواسطة ${message.author.tag}` }).catch(() => {});
+        return message.reply(`🔨 تم حظر العضو **${target.user.tag}** بنجاح!`);
+    }
+
+    // 5. اختصار الطرد / التف (+تف [@عضو])
+    if (lowerContent.startsWith('+تف')) {
+        if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
+            return message.reply('❌ ليس لديك صلاحية طرد الأعضاء (`Kick Members`)!');
+        }
+        const target = message.mentions.members.first();
+        if (!target) return message.reply('❌ يرجى منشن العضو المراد طرده. مثال: `+تف @user`');
+        if (!target.kickable) return message.reply('❌ لا يمكنني طرد هذا العضو!');
+
+        await target.kick(`بواسطة ${message.author.tag}`).catch(() => {});
+        return message.reply(`👢 تم طرد العضو **${target.user.tag}** من السيرفر!`);
+    }
+
+    // 6. اختصار التايم أوت (+تايم [@عضو] [الدقائق])
+    if (lowerContent.startsWith('+تايم')) {
+        if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+            return message.reply('❌ ليس لديك صلاحية إسكات الأعضاء (`Timeout`)!');
+        }
+        const args = content.split(' ');
+        const target = message.mentions.members.first();
+        const minutes = parseInt(args[2]);
+
+        if (!target || isNaN(minutes)) {
+            return message.reply('❌ الطريقة الصحيحة: `+تايم @عضو [عدد الدقائق]` (مثال: `+تايم @user 5`)');
+        }
+
+        try {
+            await target.timeout(minutes * 60 * 1000, `بواسطة ${message.author.tag}`);
+            return message.reply(`🔇 تم إعطاء تايم أوت للعضو **${target.user.tag}** لمدة **${minutes}** دقيقة!`);
+        } catch (e) {
+            return message.reply('❌ فشل إعطاء تايم أوت، تأكد من صلاحيات البوت.');
+        }
+    }
 
     // نظام XP والمستويات
     if (!userLevels[userId]) userLevels[userId] = { xp: 0, level: 1 };
@@ -366,7 +456,7 @@ client.on('messageCreate', async message => {
     // لعبة التخمين
     if (activeGames.has(channelId)) {
         const target = activeGames.get(channelId);
-        const guessed = parseInt(content);
+        const guessed = parseInt(lowerContent);
         if (!isNaN(guessed) && guessed === target) {
             activeGames.delete(channelId);
             return message.reply(`🎉 **كفووو!** إجابة صحيحة، الرقم هو **${target}**!`);
@@ -374,13 +464,13 @@ client.on('messageCreate', async message => {
     }
 
     // الردود التلقائية
-    if (autoResponses[content]) {
-        return message.reply(autoResponses[content]);
+    if (autoResponses[lowerContent]) {
+        return message.reply(autoResponses[lowerContent]);
     }
 
     // تفعيل الذكاء الاصطناعي
     const isMentioned = message.mentions.has(client.user);
-    const isAiPrefix = content.startsWith('!ai') || content.startsWith('يا بوت');
+    const isAiPrefix = lowerContent.startsWith('!ai') || lowerContent.startsWith('يا بوت');
     let isReplyToBot = false;
 
     if (message.reference && message.reference.messageId) {
