@@ -57,7 +57,7 @@ const cutQuestions = [
     "أفضل فيلم أو مسلسل شاهدته في حياتك؟ 🎬",
     "لو ترجع بالزمن لسنة واحدة، شنو التغيير اللي بتسويه؟ ⏳"
 ];
-const CUT_IMAGE_URL = 'https://i.ibb.co/green-cut-tox.png';
+const CUT_IMAGE_URL = 'https://i.ibb.co/C03vR20/green-tox.png';
 
 // 4. بناء أوامر السلاش
 const commands = [
