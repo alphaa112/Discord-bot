@@ -1,3 +1,5 @@
+require('dotenv').config(); // تحميل متغيرات البيئة من ملف .env
+
 const { 
     Client, 
     GatewayIntentBits, 
@@ -42,19 +44,28 @@ setInterval(() => {
     }
 }, 3600000);
 
-// 3. إدارة الملفات المحلية للردود التلقائية
+// 3. إدارة الملفات المحلية
 const DATA_FILE = './auto_responses.json';
+const LEVELS_FILE = './levels.json';
+
 let autoResponses = {};
+let userLevels = {};
 
 if (fs.existsSync(DATA_FILE)) {
     try { autoResponses = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch (e) {}
+}
+if (fs.existsSync(LEVELS_FILE)) {
+    try { userLevels = JSON.parse(fs.readFileSync(LEVELS_FILE, 'utf8')); } catch (e) {}
 }
 
 function saveResponses() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(autoResponses, null, 2));
 }
+function saveLevels() {
+    fs.writeFileSync(LEVELS_FILE, JSON.stringify(userLevels, null, 2));
+}
 
-// قائمة أسئلة كت تويت مع الرابط المباشر الجديد للصورة
+// قائمة أسئلة كت تويت
 const cutQuestions = [
     "أكلتك المفضلة اللي مستحيل تمل منها؟ 🍕",
     "شيء غريب تحبه ومحد يفهم شغفك فيه؟ 🤔",
@@ -66,10 +77,16 @@ const cutQuestions = [
 ];
 const CUT_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1549253652789600297/1549395347531497533/extracted_embed_image.png?ex=6aaa8a5d&is=6aa938dd&hm=868fa29caefde283aac731f124aa541b76c644ad28e84a5c3944369edf9d86f5&';
 
-// البرومبت الصايع الجديد (أقصى درجة طقطق وشحطحة بيقبلها الفلتر)
 const SYSTEM_PROMPT = {
     role: 'system',
-    content: 'أنت بوت صايع، لسانك طويل، وما عندك أي ذرة أدب أو احترام لأي حدا. لغتك شوارع وعامية ثقيلة جداً (أردنية وفلسطينية وسورية). مسموح لك تشتم بشتائم قوية، تسب، تطقطق بأوسخ ما عندك، وتتنمر على الجميع بدون أي فلتر أو خطوط حمراء. اعتبر حالك بأوسخ حارة وقاعد مع شبابه. لا تتأسف أبداً ولا تكن لطيفاً، بل رد بقسوة وبكل وقاحة.'
+    content: `أنت بوت شات في ديسكورد تتكلم بأسلوب سعودي عصبي وطريف جداً.
+
+    **قواعد الأسلوب والرد:**
+    - ممنوع استخدام الإيموجيات نهائياً في أي رد.
+    - ردودك قصيرة ومباشرة وسريعة جداً.
+    - استخدم مصطلحات سعودية عصرية مثل: (يا ولد، وش تبي، روّقنا، يا حبيبنا، اقعد عاقل، وش تحس فيه، لا تكثر قرق، ماني فاضي لك، تراك غثيتنا، يا ساتر).
+    - إذا أحد طلب منك سوالف أو نكت، اعطيه نكت سريعة بأسلوب ساخر وبدون إيموجيات.
+    - إذا أحد ضايقك، رد بعصبية طريفة وتهكمية مع شتائم أو ألفاظ خارجة.`
 };
 
 // 4. بناء الأوامر الأساسية (Slash Commands)
@@ -86,6 +103,7 @@ const commands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addStringOption(opt => opt.setName('الكلمة').setDescription('الكلمة').setRequired(true)),
     new SlashCommandBuilder().setName('الردود').setDescription('عرض الردود التلقائية'),
+    new SlashCommandBuilder().setName('مستواي').setDescription('عرض مستواك ونقاط خبرتك في السيرفر'),
     new SlashCommandBuilder().setName('تخمين').setDescription('لعبة تخمين رقم عشوائي من 1 إلى 50'),
     new SlashCommandBuilder().setName('حجرة-ورقة-قلم').setDescription('لعب حجرة ورقة قلم ضد البوت')
         .addStringOption(opt => opt.setName('الخيار').setDescription('اختر لعبتك')
@@ -114,7 +132,7 @@ client.once('ready', async () => {
     }
 });
 
-// دالة إنشاء إمبد الكت تويت مع الصورة
+// دالة إنشاء إمبد الكت تويت
 function createCutEmbed(user) {
     const randomQuestion = cutQuestions[Math.floor(Math.random() * cutQuestions.length)];
     const embed = new EmbedBuilder()
@@ -161,9 +179,9 @@ client.on('interactionCreate', async interaction => {
                     .setDescription('مرحباً بك! إليك جميع الأوامر واختصارات الـ (+):')
                     .addFields(
                         { name: '⚡ اختصارات الـ Prefix السريعة', value: '`+كت` - سؤال كت تويت\n`+اقتراح [نص]` - إرسال اقتراح\n`+م [العدد]` - مسح الرسائل (إدارة)\n`+بند` - حظر عضو (إدارة)\n`+تف` - طرد عضو (إدارة)\n`+تايم` - تايم أوت لعضو (إدارة)', inline: false },
-                        { name: '🤖 السوالف والدردشة', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
+                        { name: '🤖 الذكاء الاصطناعي والمزاج', value: 'تحدث معي بمنشني أو بكلمة `يا بوت`. استخدم `/مزاج` لرؤية حالة السيرفر!', inline: false },
                         { name: '🎮 التسلية والألعاب', value: '`/كت` - سؤال كت تويت\n`/تخمين` - لعبة الأرقام\n`/حجرة-ورقة-قلم` - تحدى البوت', inline: false },
-                        { name: '📊 المعلومات', value: '`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
+                        { name: '📊 المستويات والمعلومات', value: '`/مستواي` - مستواك\n`/سيرفر` - معلومات السيرفر\n`/حسابي` - حسابك', inline: false }
                     )
                     .setThumbnail(client.user.displayAvatarURL())
                     .setTimestamp();
@@ -220,6 +238,19 @@ client.on('interactionCreate', async interaction => {
                 if (keys.length === 0) return interaction.reply({ content: '📭 لا يوجد ردود مسجلة.', ephemeral: true });
                 let listText = '📋 **الردود التلقائية:**\n\n' + keys.map((k, i) => `${i + 1}. **${k}** ➔ ${autoResponses[k]}`).join('\n');
                 await interaction.reply({ content: listText, ephemeral: true });
+            }
+
+            else if (commandName === 'مستواي') {
+                const data = userLevels[user.id] || { xp: 0, level: 1 };
+                const embed = new EmbedBuilder()
+                    .setColor('#57F287')
+                    .setTitle(`📊 بطاقة مستوى: ${user.username}`)
+                    .addFields(
+                        { name: 'المستوى (Level)', value: `⭐ ${data.level}`, inline: true },
+                        { name: 'نقاط الخبرة (XP)', value: `✨ ${data.xp} / ${data.level * 100}`, inline: true }
+                    )
+                    .setThumbnail(user.displayAvatarURL());
+                await interaction.reply({ embeds: [embed] });
             }
 
             else if (commandName === 'تخمين') {
@@ -326,6 +357,7 @@ client.on('messageCreate', async message => {
     processedMessages.add(message.id);
     setTimeout(() => processedMessages.delete(message.id), 10000);
 
+    const userId = message.author.id;
     const channelId = message.channel.id;
     const content = message.content.trim();
     const lowerContent = content.toLowerCase();
@@ -388,7 +420,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🔨 تم حظر العضو **${target.user.tag}** بنجاح!`);
     }
 
-    // 5. اختصار الطرد / التف (+تف [@عضو])
+    // 5. اختصار الطرد (+تف [@عضو])
     if (lowerContent.startsWith('+تف')) {
         if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
             return message.reply('❌ ليس لديك صلاحية طرد الأعضاء (`Kick Members`)!');
@@ -422,6 +454,15 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // نظام XP والمستويات
+    if (!userLevels[userId]) userLevels[userId] = { xp: 0, level: 1 };
+    userLevels[userId].xp += Math.floor(Math.random() * 10) + 5;
+    if (userLevels[userId].xp >= userLevels[userId].level * 100) {
+        userLevels[userId].level += 1;
+        message.channel.send(`🎉 مبروك ${message.author}! ارتفع مستواك إلى **المستوى ${userLevels[userId].level}**!`);
+    }
+    saveLevels();
+
     // لعبة التخمين
     if (activeGames.has(channelId)) {
         const target = activeGames.get(channelId);
@@ -437,7 +478,7 @@ client.on('messageCreate', async message => {
         return message.reply(autoResponses[lowerContent]);
     }
 
-    // تفعيل الذكاء الاصطناعي (الوضع الصايع والمشجع للسوالف)
+    // تفعيل الذكاء الاصطناعي مع معالجة محسّنة للأخطاء
     const isMentioned = message.mentions.has(client.user);
     const isAiPrefix = lowerContent.startsWith('!ai') || lowerContent.startsWith('يا بوت');
     let isReplyToBot = false;
@@ -452,26 +493,34 @@ client.on('messageCreate', async message => {
     if (isMentioned || isAiPrefix || isReplyToBot) {
         try {
             await message.channel.sendTyping();
+            
             let cleanPrompt = message.content
                 .replace(/<@!?\d+>/g, '')
                 .replace(/^!ai/i, '')
                 .replace(/^يا بوت/i, '')
                 .trim();
 
-            if (!cleanPrompt) cleanPrompt = "هاه شكو؟";
+            if (!cleanPrompt) cleanPrompt = "أهلاً";
 
             if (!conversationHistory.has(channelId)) conversationHistory.set(channelId, []);
             const history = conversationHistory.get(channelId);
 
             history.push({ role: 'user', content: cleanPrompt });
-            if (history.length > 20) history.shift();
+            if (history.length > 8) history.shift();
 
             const chatCompletion = await groq.chat.completions.create({
                 messages: [SYSTEM_PROMPT, ...history],
                 model: 'openai/gpt-oss-20b',
+                max_tokens: 500,
+                temperature: 0.7
             });
 
-            const replyText = chatCompletion.choices[0]?.message?.content || 'خير شتبي؟';
+            const replyText = chatCompletion.choices?.[0]?.message?.content;
+
+            if (!replyText) {
+                return message.reply('أهلاً! استلمت طلبك لكن لم أتمكن من صياغة الرد، جرب مجدداً.');
+            }
+
             history.push({ role: 'assistant', content: replyText });
 
             if (replyText.length > 2000) {
@@ -481,9 +530,12 @@ client.on('messageCreate', async message => {
                 await message.reply(replyText);
             }
         } catch (error) {
-            console.error('Groq AI Error:', error);
+            console.error('❌ خطأ Groq AI بالتفصيل:', error);
             const history = conversationHistory.get(message.channel.id);
             if (history) history.pop();
+            
+            const errorMsg = error.message || 'خطأ غير معروف في الاتصال بالذكاء الاصطناعي';
+            message.reply(`⚠️ حدث خطأ أثناء الاتصال: \`${errorMsg}\``);
         }
     }
 });
